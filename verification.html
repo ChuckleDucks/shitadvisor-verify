@@ -51,50 +51,71 @@
     </div>
 
     <script type="module">
-        import { Client, Account } from "https://cdn.jsdelivr.net/npm/appwrite@13/dist/index.js";
+        import { Client, Account } from "https://unpkg.com/appwrite@13.0.1/dist/index.js";
         
-        const client = new Client()
-            .setEndpoint("https://fra.cloud.appwrite.io/v1")
-            .setProject("68af1176000a4a9cc3bd");
+        console.log('Verification script starting...');
         
-        const account = new Account(client);
-        
-        async function verifyEmail() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const secret = urlParams.get('secret');
-            const userId = urlParams.get('userId');
+        try {
+            console.log('Appwrite SDK imported successfully');
+            
+            const client = new Client()
+                .setEndpoint("https://fra.cloud.appwrite.io/v1")
+                .setProject("68af1176000a4a9cc3bd");
+            
+            console.log('Appwrite client created');
+            
+            const account = new Account(client);
+            
+            async function verifyEmail() {
+                console.log('verifyEmail function called');
+                
+                const urlParams = new URLSearchParams(window.location.search);
+                const secret = urlParams.get('secret');
+                const userId = urlParams.get('userId');
 
-            if (!secret || !userId) {
-                document.getElementById('status').className = 'error';
-                document.getElementById('status').textContent = 'Invalid verification link';
-                document.getElementById('message').textContent = 'The verification link is missing required parameters.';
-                return;
+                console.log('URL params:', { userId, secret: secret ? '***' : 'null' });
+
+                if (!secret || !userId) {
+                    document.getElementById('status').className = 'error';
+                    document.getElementById('status').textContent = 'Invalid verification link';
+                    document.getElementById('message').textContent = 'The verification link is missing required parameters.';
+                    return;
+                }
+
+                try {
+                    console.log('Calling Appwrite updateVerification...');
+                    // Complete email verification
+                    await account.updateVerification(userId, secret);
+                    
+                    console.log('Verification successful!');
+                    document.getElementById('status').className = 'success';
+                    document.getElementById('status').textContent = 'Email verified successfully! ✓';
+                    document.getElementById('message').textContent = 'Your email has been verified. You can now close this page and return to the Shitadvisor app.';
+                    document.getElementById('openApp').style.display = 'inline-block';
+                    
+                } catch (error) {
+                    console.error('Verification error:', error);
+                    document.getElementById('status').className = 'error';
+                    document.getElementById('status').textContent = 'Verification failed';
+                    document.getElementById('message').textContent = `Error: ${error.message || 'Unknown error occurred'}`;
+                }
             }
 
-            try {
-                // Complete email verification
-                await account.updateVerification(userId, secret);
-                
-                document.getElementById('status').className = 'success';
-                document.getElementById('status').textContent = 'Email verified successfully! ✓';
-                document.getElementById('message').textContent = 'Your email has been verified. You can now close this page and return to the Shitadvisor app.';
-                document.getElementById('openApp').style.display = 'inline-block';
-                
-            } catch (error) {
-                console.error('Verification error:', error);
-                document.getElementById('status').className = 'error';
-                document.getElementById('status').textContent = 'Verification failed';
-                document.getElementById('message').textContent = 'There was an error verifying your email. Please try again or contact support.';
+            function openApp() {
+                // Try to open the app using the deep link
+                window.location.href = 'shitadvisor://verified';
             }
-        }
 
-        function openApp() {
-            // Try to open the app using the deep link
-            window.location.href = 'shitadvisor://verified';
+            // Start verification when page loads
+            console.log('Starting verification process...');
+            verifyEmail();
+            
+        } catch (error) {
+            console.error('Script loading error:', error);
+            document.getElementById('status').className = 'error';
+            document.getElementById('status').textContent = 'Script loading failed';
+            document.getElementById('message').textContent = `Error: ${error.message}`;
         }
-
-        // Start verification when page loads
-        verifyEmail();
     </script>
 </body>
 </html>
