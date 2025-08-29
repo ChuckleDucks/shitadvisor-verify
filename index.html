@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verify your email</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 2rem; max-width: 640px; margin: auto; }
+    .ok { color: #0a7; }
+    .err { color: #c00; }
+  </style>
+</head>
+<body>
+  <h1>Email verification</h1>
+  <p id="status">Verifying…</p>
+
+  <script type="module">
+    import { Client, Account } from "https://cdn.jsdelivr.net/npm/appwrite@13/dist/index.js";
+
+    const client = new Client()
+      .setEndpoint("https://fra.cloud.appwrite.io/v1")   // your region endpoint
+      .setProject("68af1176000a4a9cc3bd");               // your Project ID
+
+    const account = new Account(client);
+    const p = new URLSearchParams(location.search);
+    const userId = p.get("userId");
+    const secret = p.get("secret");
+    const status = document.getElementById("status");
+
+    async function run() {
+      if (!userId || !secret) {
+        status.className = "err";
+        status.textContent = "Missing verification parameters.";
+        return;
+      }
+      try {
+        await account.updateVerification(userId, secret);
+        status.className = "ok";
+        status.innerHTML = "✅ Verified! You can close this page.<br/>Opening the app…";
+        // Optional: deep-link into the app after success:
+        window.location.href = "shitadvisor://verified";
+      } catch (e) {
+        status.className = "err";
+        status.textContent = "Verification failed: " + (e?.message || e);
+      }
+    }
+    run();
+  </script>
+</body>
+</html>
