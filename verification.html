@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verification - Shitadvisor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #f44336;
+        }
+        .loading {
+            color: #2196F3;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Email Verification</h1>
+        <div id="status" class="loading">Verifying your email...</div>
+        <div id="message"></div>
+        <button id="openApp" style="display: none;" onclick="openApp()">Open Shitadvisor App</button>
+    </div>
+
+    <script type="module">
+        import { Client, Account } from "https://cdn.jsdelivr.net/npm/appwrite@13/dist/index.js";
+        
+        const client = new Client()
+            .setEndpoint("https://fra.cloud.appwrite.io/v1")
+            .setProject("68af1176000a4a9cc3bd");
+        
+        const account = new Account(client);
+        
+        async function verifyEmail() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const secret = urlParams.get('secret');
+            const userId = urlParams.get('userId');
+
+            if (!secret || !userId) {
+                document.getElementById('status').className = 'error';
+                document.getElementById('status').textContent = 'Invalid verification link';
+                document.getElementById('message').textContent = 'The verification link is missing required parameters.';
+                return;
+            }
+
+            try {
+                // Complete email verification
+                await account.updateVerification(userId, secret);
+                
+                document.getElementById('status').className = 'success';
+                document.getElementById('status').textContent = 'Email verified successfully! ✓';
+                document.getElementById('message').textContent = 'Your email has been verified. You can now close this page and return to the Shitadvisor app.';
+                document.getElementById('openApp').style.display = 'inline-block';
+                
+            } catch (error) {
+                console.error('Verification error:', error);
+                document.getElementById('status').className = 'error';
+                document.getElementById('status').textContent = 'Verification failed';
+                document.getElementById('message').textContent = 'There was an error verifying your email. Please try again or contact support.';
+            }
+        }
+
+        function openApp() {
+            // Try to open the app using the deep link
+            window.location.href = 'shitadvisor://verified';
+        }
+
+        // Start verification when page loads
+        verifyEmail();
+    </script>
+</body>
+</html>
