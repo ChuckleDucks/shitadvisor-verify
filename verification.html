@@ -51,12 +51,12 @@
     </div>
 
     <!-- Load Appwrite SDK from CDN with fallback -->
-    <script src="https://unpkg.com/appwrite@13.0.1/dist/index.js" onerror="loadFallback()"></script>
+    <script src="https://unpkg.com/appwrite@14.0.0/dist/index.js" onerror="loadFallback()"></script>
     <script>
         function loadFallback() {
             console.log('Primary CDN failed, trying fallback...');
             const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/appwrite@13.0.1/dist/index.js';
+            script.src = 'https://cdn.jsdelivr.net/npm/appwrite@14.0.0/dist/index.js';
             script.onerror = function() {
                 console.error('All CDNs failed to load Appwrite SDK');
                 document.getElementById('status').className = 'error';
@@ -142,7 +142,22 @@
                         console.error('Verification error:', error);
                         document.getElementById('status').className = 'error';
                         document.getElementById('status').textContent = 'Verification failed';
-                        document.getElementById('message').textContent = `Error: ${error.message || 'Unknown error occurred'}`;
+                        
+                        // More specific error messages
+                        let errorMessage = 'Unknown error occurred';
+                        if (error.message) {
+                            if (error.message.includes('Invalid user ID')) {
+                                errorMessage = 'Invalid verification link. The user ID is not valid.';
+                            } else if (error.message.includes('Invalid secret')) {
+                                errorMessage = 'Invalid verification link. The secret key is not valid.';
+                            } else if (error.message.includes('already verified')) {
+                                errorMessage = 'This email has already been verified.';
+                            } else {
+                                errorMessage = `Error: ${error.message}`;
+                            }
+                        }
+                        
+                        document.getElementById('message').textContent = errorMessage;
                     }
                 }
 
