@@ -40,6 +40,12 @@
         button:hover {
             background-color: #45a049;
         }
+        .retry-btn {
+            background-color: #2196F3;
+        }
+        .retry-btn:hover {
+            background-color: #1976D2;
+        }
     </style>
 </head>
 <body>
@@ -48,33 +54,57 @@
         <div id="status" class="loading">Verifying your email...</div>
         <div id="message"></div>
         <button id="openApp" style="display: none;" onclick="openApp()">Open Shitadvisor App</button>
+        <button id="retryBtn" style="display: none;" class="retry-btn" onclick="retryVerification()">Retry Verification</button>
     </div>
 
-    <!-- Load Appwrite SDK from CDN with fallback -->
-    <script src="https://unpkg.com/appwrite@14.0.0/dist/index.js" onerror="loadFallback()"></script>
-    <script>
-        function loadFallback() {
-            console.log('Primary CDN failed, trying fallback...');
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/appwrite@14.0.0/dist/index.js';
-            script.onerror = function() {
-                console.error('All CDNs failed to load Appwrite SDK');
-                document.getElementById('status').className = 'error';
-                document.getElementById('status').textContent = 'Failed to load verification system';
-                document.getElementById('message').textContent = 'Please try again later or contact support.';
-            };
-            document.head.appendChild(script);
-        }
-    </script>
-    
     <script>
         console.log('Verification script starting...');
+        
+        let verificationAttempted = false;
+        
+        // Function to load Appwrite SDK with multiple fallbacks
+        function loadAppwriteSDK() {
+            return new Promise((resolve, reject) => {
+                const cdnUrls = [
+                    'https://unpkg.com/appwrite@14.0.0/dist/index.js',
+                    'https://cdn.jsdelivr.net/npm/appwrite@14.0.0/dist/index.js',
+                    'https://cdn.skypack.dev/appwrite@14.0.0',
+                    'https://unpkg.com/appwrite@13.0.1/dist/index.js',
+                    'https://cdn.jsdelivr.net/npm/appwrite@13.0.1/dist/index.js'
+                ];
+                
+                let currentIndex = 0;
+                
+                function tryLoadScript() {
+                    if (currentIndex >= cdnUrls.length) {
+                        reject(new Error('All CDN sources failed to load Appwrite SDK'));
+                        return;
+                    }
+                    
+                    const script = document.createElement('script');
+                    script.src = cdnUrls[currentIndex];
+                    script.onload = () => {
+                        console.log(`Appwrite SDK loaded from: ${cdnUrls[currentIndex]}`);
+                        resolve(window.Appwrite);
+                    };
+                    script.onerror = () => {
+                        console.warn(`Failed to load from: ${cdnUrls[currentIndex]}`);
+                        currentIndex++;
+                        setTimeout(tryLoadScript, 500);
+                    };
+                    
+                    document.head.appendChild(script);
+                }
+                
+                tryLoadScript();
+            });
+        }
         
         // Function to check if Appwrite is loaded
         function waitForAppwrite() {
             return new Promise((resolve, reject) => {
                 let attempts = 0;
-                const maxAttempts = 10;
+                const maxAttempts = 20; // Increased attempts
                 
                 const checkAppwrite = () => {
                     attempts++;
@@ -86,7 +116,7 @@
                     } else if (attempts >= maxAttempts) {
                         reject(new Error('Appwrite SDK failed to load after multiple attempts'));
                     } else {
-                        setTimeout(checkAppwrite, 500);
+                        setTimeout(checkAppwrite, 1000); // Increased delay
                     }
                 };
                 
@@ -94,9 +124,18 @@
             });
         }
         
-        // Wait for Appwrite SDK to load
-        waitForAppwrite().then((Appwrite) => {
+        // Main verification function
+        async function performVerification() {
+            if (verificationAttempted) return;
+            verificationAttempted = true;
+            
             try {
+                console.log('Loading Appwrite SDK...');
+                await loadAppwriteSDK();
+                
+                console.log('Waiting for Appwrite to be available...');
+                const Appwrite = await waitForAppwrite();
+                
                 console.log('Appwrite SDK loaded:', typeof Appwrite);
                 
                 const { Client, Account } = Appwrite;
@@ -111,72 +150,90 @@
                 
                 const account = new Account(client);
                 
-                async function verifyEmail() {
-                    console.log('verifyEmail function called');
+                const urlParams = new URLSearchParams(window.location.search);
+                const secret = urlParams.get('secret');
+                const userId = urlParams.get('userId');
+
+                console.log('URL params:', { userId, secret: secret ? '***' : 'null' });
+
+                if (!secret || !userId) {
+                    document.getElementById('status').className = 'error';
+                    document.getElementById('status').textContent = 'Invalid verification link';
+                    document.getElementById('message').textContent = 'The verification link is missing required parameters.';
+                    return;
+                }
+
+                try {
+                    console.log('Calling Appwrite updateVerification...');
+                    // Complete email verification
+                    await account.updateVerification(userId, secret);
                     
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const secret = urlParams.get('secret');
-                    const userId = urlParams.get('userId');
-
-                    console.log('URL params:', { userId, secret: secret ? '***' : 'null' });
-
-                    if (!secret || !userId) {
-                        document.getElementById('status').className = 'error';
-                        document.getElementById('status').textContent = 'Invalid verification link';
-                        document.getElementById('message').textContent = 'The verification link is missing required parameters.';
-                        return;
-                    }
-
-                    try {
-                        console.log('Calling Appwrite updateVerification...');
-                        // Complete email verification
-                        await account.updateVerification(userId, secret);
-                        
-                        console.log('Verification successful!');
-                        document.getElementById('status').className = 'success';
-                        document.getElementById('status').textContent = 'Email verified successfully! ✓';
-                        document.getElementById('message').textContent = 'Your email has been verified. You can now close this page and return to the Shitadvisor app.';
-                        document.getElementById('openApp').style.display = 'inline-block';
-                        
-                    } catch (error) {
-                        console.error('Verification error:', error);
-                        document.getElementById('status').className = 'error';
-                        document.getElementById('status').textContent = 'Verification failed';
-                        
-                        // More specific error messages
-                        let errorMessage = 'Unknown error occurred';
-                        if (error.message) {
-                            if (error.message.includes('Invalid user ID')) {
-                                errorMessage = 'Invalid verification link. The user ID is not valid.';
-                            } else if (error.message.includes('Invalid secret')) {
-                                errorMessage = 'Invalid verification link. The secret key is not valid.';
-                            } else if (error.message.includes('already verified')) {
-                                errorMessage = 'This email has already been verified.';
-                            } else {
-                                errorMessage = `Error: ${error.message}`;
-                            }
+                    console.log('Verification successful!');
+                    document.getElementById('status').className = 'success';
+                    document.getElementById('status').textContent = 'Email verified successfully! ✓';
+                    document.getElementById('message').textContent = 'Your email has been verified. You can now close this page and return to the Shitadvisor app.';
+                    document.getElementById('openApp').style.display = 'inline-block';
+                    
+                } catch (error) {
+                    console.error('Verification error:', error);
+                    document.getElementById('status').className = 'error';
+                    document.getElementById('status').textContent = 'Verification failed';
+                    
+                    // More specific error messages
+                    let errorMessage = 'Unknown error occurred';
+                    if (error.message) {
+                        if (error.message.includes('Invalid user ID')) {
+                            errorMessage = 'Invalid verification link. The user ID is not valid.';
+                        } else if (error.message.includes('Invalid secret')) {
+                            errorMessage = 'Invalid verification link. The secret key is not valid.';
+                        } else if (error.message.includes('already verified')) {
+                            errorMessage = 'This email has already been verified.';
+                        } else {
+                            errorMessage = `Error: ${error.message}`;
                         }
-                        
-                        document.getElementById('message').textContent = errorMessage;
                     }
+                    
+                    document.getElementById('message').textContent = errorMessage;
+                    document.getElementById('retryBtn').style.display = 'inline-block';
                 }
-
-                window.openApp = function() {
-                    // Try to open the app using the deep link
-                    window.location.href = 'shitadvisor://verified';
-                }
-
-                // Start verification when page loads
-                console.log('Starting verification process...');
-                verifyEmail();
                 
             } catch (error) {
                 console.error('Script loading error:', error);
                 document.getElementById('status').className = 'error';
-                document.getElementById('status').textContent = 'Script loading failed';
-                document.getElementById('message').textContent = `Error: ${error.message}`;
+                document.getElementById('status').textContent = 'Failed to load verification system';
+                document.getElementById('message').textContent = `Error: ${error.message}. Please try again or contact support.`;
+                document.getElementById('retryBtn').style.display = 'inline-block';
             }
-        });
+        }
+
+        // Retry function
+        window.retryVerification = function() {
+            verificationAttempted = false;
+            document.getElementById('status').className = 'loading';
+            document.getElementById('status').textContent = 'Retrying verification...';
+            document.getElementById('message').textContent = '';
+            document.getElementById('retryBtn').style.display = 'none';
+            document.getElementById('openApp').style.display = 'none';
+            
+            // Clear any existing scripts
+            const existingScripts = document.querySelectorAll('script[src*="appwrite"]');
+            existingScripts.forEach(script => script.remove());
+            
+            // Reset Appwrite
+            delete window.Appwrite;
+            
+            // Retry
+            setTimeout(performVerification, 1000);
+        }
+
+        window.openApp = function() {
+            // Try to open the app using the deep link
+            window.location.href = 'shitadvisor://verified';
+        }
+
+        // Start verification when page loads
+        console.log('Starting verification process...');
+        performVerification();
     </script>
 </body>
 </html>
